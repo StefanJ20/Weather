@@ -5,9 +5,11 @@ charset-normalizer==3.4.4
 Django==6.0.1
 dotenv==0.9.9
 flatbuffers==25.12.19
+gunicorn==25.0.3
 h3==4.4.1
 idna==3.11
 numpy==2.4.1
+packaging==26.0
 pycparser==2.23
 python-dotenv==1.2.1
 requests==2.32.5
