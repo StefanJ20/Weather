@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+{% load static %}
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NWS</title>
+
+  <style>
+    :root {
+      --bg: #020617;
+      --panel: #111827;
+      --border: #233444;
+      --text: #caccd1;
+      --muted: #9ca3af;
+      --accent: #a33865;
+      --guide: rgb(117, 16, 92);
+    }
+
+    * { box-sizing: border-box; }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: radial-gradient(1200px 600px at 50% -10%, rgba(163,56,101,0.22), transparent 60%),
+                  radial-gradient(900px 500px at 10% 20%, rgba(117,16,92,0.18), transparent 60%),
+                  var(--bg);
+      opacity: 0.9;       
+      pointer-events: none;
+      filter: saturate(1) blur(1px); 
+    }
+
+    body {
+      position: relative;
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      overflow-x: hidden;
+      padding: 28px 16px;
+      background-image: url("{% static 'gifs/rain.gif' %}");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    .wrap {
+      width: min(980px, 100%);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: clamp(22px, 2.4vw, 34px);
+      letter-spacing: 0.2px;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 24%), var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    }
+
+    .form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: var(--text);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(2, 6, 23, 0.35);
+      outline: none;
+    }
+
+    input::placeholder { color: rgba(156,163,175,0.65); }
+
+    input:focus, select:focus {
+      border-color: rgba(163,56,101,0.75);
+      box-shadow: 0 0 0 4px rgba(163,56,101,0.18);
+    }
+
+    .actions {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 6px;
+    }
+
+    button {
+      max-width: 220px;
+      cursor: pointer;
+      border-color: rgba(163,56,101,0.6);
+      background: linear-gradient(180deg, rgba(163,56,101,0.25), rgba(163,56,101,0.10));
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+      font-weight: 650;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(163,56,101,0.9);
+      box-shadow: 0 10px 24px rgba(163,56,101,0.12);
+    }
+
+    .hint {
+      margin-top: 10px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .result {
+      margin-top: 14px;
+      display: none;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(2, 6, 23, 0.35);
+      padding: 12px;
+      min-height: 88px;
+    }
+
+    .k { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .v { font-size: 20px; font-weight: 750; line-height: 1.1; }
+    .meta { margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+    .hr {
+      height: 1px;
+      background: rgba(35, 52, 68, 0.9);
+      margin: 14px 0;
+      border: 0;
+    }
+
+    .error {
+      color: #ffb4b4;
+      background: rgba(163, 56, 101, 0.10);
+      border: 1px solid rgba(163, 56, 101, 0.45);
+      padding: 12px;
+      border-radius: 14px;
+      white-space: pre-wrap;
+      font-size: 13px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(2, 6, 23, 0.35);
+      color: var(--text);
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(163,56,101,0.55);
+      background: rgba(163,56,101,0.12);
+      color: var(--text);
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 520px) {
+      .form { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+      button { max-width: 100%; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>NWS Data</h1>
+      <p class="sub">
+        My fucking betting assistant.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="form">
+        <div class="field">
+          <label for="location">Location</label>
+          <select id="location">
+            <!-- Add/edit options here. data-lat / data-lon are the embedded coords. -->
+            <option value="kaus" data-lat="30.1945" data-lon="-97.6699">Austin (KAUS) — Bergstrom Airport</option>
+            <option value="lax" data-lat="33.93806" data-lon="-118.38889">Los Angeles (KLAX) — LAX</option>
+            <option value="nyc" data-lat="40.7826" data-lon="-73.9656">New York City</option>
+            <option value="chi" data-lat="41.7868" data-lon="-87.7522">Chicago</option>
+            <option value="mia" data-lat="25.7923" data-lon="-80.2823">Miami</option>
+            <option value="den" data-lat="39.8563" data-lon="-104.6764">Denver</option>
+            <option value="phl" data-lat="39.8730" data-lon="-75.2437">Philidelphia</option>
+            <option value="vgs" data-lat="36.0831" data-lon="-115.1482">Las Vegas</option>
+            <option value="stl" data-lat="47.44472" data-lon="-122.31361">Seattle</option>
+            <option value="dc" data-lat="38.8501" data-lon="-77.0392">Washington DC</option>
+            <option value="sf" data-lat="37.6191" data-lon="-122.3816">San Fransisco</option>
+            <option value="atl" data-lat="33.64028" data-lon="-84.42694">Atlanta</option>
+            <option value="min" data-lat="44.88306" data-lon="-93.22889">Minneapolis</option>
+            <option value="phn" data-lat="33.427799" data-lon="-112.003465">Pheonix</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="date">Date (YYYY-MM-DD, optional)</label>
+          <input id="date" placeholder="leave empty for today" />
+        </div>
+
+        <div class="actions">
+          <button id="fetchBtn" type="button">Fetch</button>
+        </div>
+      </div>
+
+      <div class="hint">
+        Blank date uses “today” in the location’s timezone (server-side).
+      </div>
+
+      <div id="output" class="result"></div>
+    </div>
+  </div>
+
+  <script>
+
+    const toNum = (x) => {
+      if (x === null || x === undefined) return null;
+      if (typeof x === "number") return Number.isFinite(x) ? x : null;
+      if (typeof x === "string") {
+        const n = Number(x);
+        return Number.isFinite(n) ? n : null;
+      }
+      return null; 
+    };
+
+    const fmtTemp = (x) => {
+      const n = toNum(x);
+      return (n === null) ? "N/A" : `${n.toFixed(2)} °F`;
+    };
+
+    const fmtMph = (x) => {
+      const n = toNum(x);
+      return (n === null) ? "N/A" : `${n.toFixed(1)} mph`;
+    };
+
+    const fmt = fmtTemp;
+
+    function getSelectedCoords() {
+      const sel = document.getElementById("location");
+      const opt = sel.options[sel.selectedIndex];
+      return {
+        lat: (opt.dataset.lat || "").trim(),
+        lon: (opt.dataset.lon || "").trim(),
+        label: opt.textContent.trim(),
+      };
+    }
+
+    function renderError(out, status, text) {
+      out.style.display = "block";
+      out.innerHTML = `<div class="error">Error ${status}:\n${text}</div>`;
+    }
+
+    function renderLoading(out) {
+      out.style.display = "block";
+      out.innerHTML = `<div class="card"><div class="k">Status</div><div class="v">Loading…</div><div class="meta">Fetching NWS data…</div></div>`;
+    }
+
+    function renderSuccess(out, j) {
+      out.style.display = "block";
+
+      const nowcast = (Array.isArray(j.nowcast_next_0_60m) && j.nowcast_next_0_60m.length)
+        ? `
+          <div class="k" style="margin: 14px 0 8px 0;">
+            Nowcast (next 0–60 minutes)
+            ${j.nowcast_method ? ` <span class="badge">${j.nowcast_method}</span>` : ""}
+          </div>
+          <div class="grid" style="margin-bottom: 14px;">
+            ${j.nowcast_next_0_60m.map(p => `
+              <div class="card">
+                <div class="k">Temp at +${p.minutes_ahead}m</div>
+                <div class="v">${fmtTemp(p.temp_f)}</div>
+                <div class="meta">trend: ${fmtTemp(p.temp_f_trend)} | w: ${p.weight_trend}</div>
+              </div>
+            `).join("")}
+          </div>
+          ${j.nowcast_obs_age_minutes != null ? `<div class="meta" style="margin:-6px 0 12px 0;">obs age: ${j.nowcast_obs_age_minutes} min</div>` : ""}
+        `
+        : (j.nowcast_error
+          ? `<div class="meta" style="margin: 14px 0 14px 0; color:#ffb4b4;">nowcast_error: ${j.nowcast_error}</div>`
+          : "");
+
+        
+      const next1to8 = (Array.isArray(j.best_temp_next_1_12h) && j.best_temp_next_1_12h.length)
+        ? `
+          <div class="k" style="margin: 14px 0 8px 0;">Best estimate temps (next 1–12 hours)</div>
+          <div class="grid" style="margin-bottom: 14px;">
+            ${j.best_temp_next_1_12h.map(h => `
+              <div class="card">
+                <div class="k">Temp at +${h.hours_ahead}h</div>
+                <div class="v">${fmtTemp(h.temp_f)}</div>
+                <div class="meta">${h.start_utc || "N/A"}</div>
+              </div>
+            `).join("")}
+          </div>
+        `
+        : "";
+        
+      out.innerHTML = `
+      
+        <div class="grid">
+          <div class="card">
+            <div class="k">Overall max</div>
+            <div class="v">${fmt(j.overall_max_f)}</div>
+            <div class="meta">date: ${j.date} (${j.timezone})</div>
+          </div>
+        
+          <div class="card">
+            <div class="k">Forecast max (periods)</div>
+            <div class="v">${fmt(j.forecast_max_f)}</div>
+            ${j.forecast_error ? `<div class="meta" style="color:#ffb4b4;">forecast_error: ${j.forecast_error}</div>` : ""}
+          </div>
+        
+          <div class="card">
+            <div class="k">Hourly forecast max</div>
+            <div class="v">${fmt(j.hourly_max_f)}</div>
+            ${j.hourly_error ? `<div class="meta" style="color:#ffb4b4;">hourly_error: ${j.hourly_error}</div>` : ""}
+          </div>
+        
+          <div class="card">
+            <div class="k">Station observed max</div>
+            <div class="v">${fmt(j.station_max_f)}</div>
+            <div class="meta">station: ${j.station_id || "N/A"}</div>
+            ${j.station_error ? `<div class="meta" style="color:#ffb4b4;">station_error: ${j.station_error}</div>` : ""}
+          </div>
+        
+          <div class="card">
+            <div class="k">Best next hour estimate</div>
+            <div class="v">${fmtTemp(j.best_next_hour_temp_f)}</div>
+            <div class="meta">dewpoint: ${fmtTemp(j.best_next_hour_dewpoint_f)}</div>
+            <div class="meta">wind speed: ${fmtMph(j.best_next_hour_wind_speed_mph)}</div>
+            <div class="meta">wind direction: ${j.best_next_hour_wind_direction || "N/A"}</div>
+          </div>
+        </div>
+
+        <hr class="hr" />
+
+        ${nowcast}
+
+        <hr class="hr" />
+      
+        ${next1to8}
+
+        <hr class="hr" />
+      
+        <div class="k" style="margin: 0 0 8px 0;">Next 3 hours (best estimate)</div>
+        <div class="grid" style="margin-bottom: 14px;">
+          <div class="card">
+            <div class="k">Max temp (3h)</div>
+            <div class="v">${fmtTemp(j.best_next_3h_max_temp_f)}</div>
+            <div class="meta">${j.next_3h_start_utc || "N/A"} → ${j.next_3h_end_utc || "N/A"}</div>
+          </div>
+          <div class="card">
+            <div class="k">Max dew point (3h)</div>
+            <div class="v">${fmtTemp(j.best_next_3h_max_dewpoint_f)}</div>
+          </div>
+          <div class="card">
+            <div class="k">Max wind speed (3h)</div>
+            <div class="v">${fmtMph(j.best_next_3h_max_wind_speed_mph)}</div>
+          </div>
+          <div class="card">
+            <div class="k">Periods used</div>
+            <div class="v">${j.next_3h_period_count ?? 0}</div>
+          </div>
+        </div>
+
+        <hr class="hr" />
+      
+        <div class="k" style="margin: 0 0 8px 0;">Next 6 hours (best estimate)</div>
+        <div class="grid" style="margin-bottom: 14px;">
+          <div class="card">
+            <div class="k">Max temp (6h)</div>
+            <div class="v">${fmtTemp(j.best_next_6h_max_temp_f)}</div>
+            <div class="meta">${j.next_6h_start_utc || "N/A"} → ${j.next_6h_end_utc || "N/A"}</div>
+          </div>
+          <div class="card">
+            <div class="k">Max dew point (6h)</div>
+            <div class="v">${fmtTemp(j.best_next_6h_max_dewpoint_f)}</div>
+          </div>
+          <div class="card">
+            <div class="k">Max wind speed (6h)</div>
+            <div class="v">${fmtMph(j.best_next_6h_max_wind_speed_mph)}</div>
+          </div>
+          <div class="card">
+            <div class="k">Periods used</div>
+            <div class="v">${j.next_6h_period_count ?? 0}</div>
+          </div>
+        </div>
+      
+        <hr class="hr" />
+      
+        <div class="k" style="margin-bottom:8px;">Raw JSON</div>
+        <pre>${JSON.stringify(j, null, 2)}</pre>
+      `;
+    }
+
+
+    document.getElementById("fetchBtn").addEventListener("click", async () => {
+      const { lat, lon } = getSelectedCoords();
+      const date = document.getElementById("date").value.trim();
+
+      const out = document.getElementById("output");
+      renderLoading(out);
+
+      const params = new URLSearchParams({ lat, lon });
+      if (date) params.set("date", date);
+
+      try {
+        const resp = await fetch(`/api/highest-full/?${params.toString()}`);
+        const contentType = resp.headers.get("content-type") || "";
+
+        if (!resp.ok) {
+          const text = contentType.includes("application/json")
+            ? JSON.stringify(await resp.json(), null, 2)
+            : await resp.text();
+          renderError(out, resp.status, text);
+          return;
+        }
+
+        const j = await resp.json();
+        if (j.error) {
+          renderError(out, resp.status, `${j.error}\n${j.details || ""}`);
+          return;
+        }
+
+        renderSuccess(out, j);
+      } catch (err) {
+        renderError(out, "Network", err?.message || String(err));
+      }
+    });
+  </script>
+</body>
+</html>
