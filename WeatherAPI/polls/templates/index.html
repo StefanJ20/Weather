@@ -27,7 +27,7 @@
       background: radial-gradient(1200px 600px at 50% -10%, rgba(163,56,101,0.22), transparent 60%),
                   radial-gradient(900px 500px at 10% 20%, rgba(117,16,92,0.18), transparent 60%),
                   var(--bg);
-      opacity: 0.9;       
+      opacity: 0.75;       
       pointer-events: none;
       filter: saturate(1) blur(1px); 
     }
@@ -46,12 +46,17 @@
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
-      animation: animate-bg 60s linear infinite;
+      animation: animate-bg 60s linear infinite, bg-hueRotate 60s linear infinite;
     }
 
     @keyframes animate-bg {
       0% { background-position: 0% 0%; }
       100% { background-position: 100% 100%; }
+    }
+
+    @keyframes bg-hueRotate {
+      0% { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(360deg); }
     }
 
     .wrap {
