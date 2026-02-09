@@ -19,14 +19,18 @@ NWS_DEFAULT_TIMEZONE = "America/Los_Angeles"
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 import os
-import dotenv # type: ignore
-dotenv.load_dotenv(BASE_DIR / ".env")
+from dotenv import load_dotenv # type: ignore
+load_dotenv(BASE_DIR / ".env")
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY is missing.")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 
