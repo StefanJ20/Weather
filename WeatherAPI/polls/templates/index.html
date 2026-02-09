@@ -46,6 +46,12 @@
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
+      animation: animate-bg 60s linear infinite;
+    }
+
+    @keyframes animate-bg {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 100% 100%; }
     }
 
     .wrap {
