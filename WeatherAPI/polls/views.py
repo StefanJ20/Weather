@@ -162,10 +162,10 @@ def haversine_km(lat1, lon1, lat2, lon2):
     a = math.sin(dphi/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dlmb/2)**2
     return 2 * R * math.asin(math.sqrt(a))
 
-def pick_closest_station_id(point_json, lat: float, lon: float, max_candidates: int = 20):
+def pick_closest_station_id(point_json, lat: float, lon: float, max_candidates: int = 200):
     stations_url = point_json.get("properties", {}).get("observationStations")
     if not stations_url:
-        return None
+        return None, None
     stations_json = get_json(stations_url)
     best = None
     best_d = None
@@ -180,7 +180,7 @@ def pick_closest_station_id(point_json, lat: float, lon: float, max_candidates: 
         if best_d is None or d < best_d:
             best_d = d
             best = sid
-    return best
+    return best, best_d
 
 
 def window_max_from_hourly(hourly_json, now_utc: datetime, hours: int):
@@ -252,7 +252,8 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
 
     forecast_url = pts.get("properties", {}).get("forecast")
     hourly_url = pts.get("properties", {}).get("forecastHourly")
-    station_id = pick_closest_station_id(pts, lat, lon)
+    station_id, station_distance_km = pick_closest_station_id(pts, lat, lon)
+
 
     now_utc = datetime.now(timezone.utc).replace(microsecond=0)
     today_local = datetime.now(ZoneInfo(tz_name)).date()
@@ -268,6 +269,7 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
         "date": target_date.isoformat(),
         "timezone": tz_name,
         "station_id": station_id,
+        "station_distance_km": station_distance_km,
         "window_start_utc": start_utc.isoformat(),
         "window_end_utc": end_utc.isoformat(),
         "window_end_utc_full": end_utc_full.isoformat(),
@@ -288,7 +290,8 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
         try:
             hj = get_json(hourly_url)
             results["hourly_max_f"] = max_from_hourly(hj, start_utc, end_utc_full)
-
+            results["forecasted_max_f"] = results["hourly_max_f"]
+            results["forecast_source"] = "forecastHourly"
             now_utc = datetime.now(timezone.utc).replace(microsecond=0)
 
             horizons = []
@@ -350,6 +353,8 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
             results["next_hour_dewpoint_f"] = None
             results["next_hour_wind_speed_mph"] = None
             results["next_hour_wind_direction"] = None
+            results["forecasted_max_f"] = None
+            results["forecast_source"] = "forecastHourly"
 
             results["next_3h_start_utc"] = None
             results["next_3h_end_utc"] = None
@@ -370,15 +375,18 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
         results["next_hour_start_utc"] = None
         results["next_hour_temp_f"] = None
         results["next_hour_dewpoint_f"] = None
+        results["forecasted_max_f"] = None
+        results["forecast_source"] = "forecastHourly"
         results["next_hour_wind_speed_mph"] = None
         results["next_hour_wind_direction"] = None
 
     if station_id and not future_date:
         try:
             obs_max = max_from_station_observations(station_id, start_utc, end_utc)
-            if obs_max is None:
+            if obs_max is None and target_date == today_local:
                 latest = get_latest_station_observation(station_id)
                 obs_max = latest.get("obs_temp_f")
+
             results["station_running_max_f"] = obs_max
         except Exception as e:
             results["station_error"] = str(e)
@@ -386,14 +394,14 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
     else:
         results["station_running_max_f"] = None
 
+
     results["observed_max_f"] = results.get("station_running_max_f")
     results["station_max_f"] = results.get("observed_max_f")
 
-    forecast_candidates = [results.get("forecast_max_f"), results.get("hourly_max_f")]
-    forecast_candidates = [x for x in forecast_candidates if x is not None]
-    results["forecasted_max_f"] = max(forecast_candidates) if forecast_candidates else None
+    results["display_forecasted_max_f"] = max(x for x in [results.get("forecast_max_f"), results.get("hourly_max_f")] if x is not None) if any([results.get("forecast_max_f"), results.get("hourly_max_f")]) else None
 
-    best_candidates = [results.get("observed_max_f"), results.get("forecasted_max_f")]
+
+    best_candidates = [results.get("observed_max_f"), results.get("display_forecasted_max_f")]
     best_candidates = [x for x in best_candidates if x is not None]
     results["best_estimate_max_f"] = max(best_candidates) if best_candidates else None
     results["overall_max_f"] = results.get("best_estimate_max_f")
