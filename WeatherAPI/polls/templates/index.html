@@ -270,6 +270,7 @@
             <option value="atl" data-lat="33.64028" data-lon="-84.42694">Atlanta</option>
             <option value="min" data-lat="44.88306" data-lon="-93.22889">Minneapolis</option>
             <option value="phn" data-lat="33.427799" data-lon="-112.003465">Pheonix</option>
+            <option value="bos" data-lat="42.36056" data-lon="-71.01056">Boston</option>
           </select>
         </div>
 
@@ -360,11 +361,11 @@
           : "");
 
         
-      const next1to8 = (Array.isArray(j.best_temp_next_1_12h) && j.best_temp_next_1_12h.length)
+      const next1to8 = (Array.isArray(j.best_temp_next_1_24h) && j.best_temp_next_1_24h.length)
         ? `
-          <div class="k" style="margin: 14px 0 8px 0;">Best estimate temps (next 1–12 hours)</div>
+          <div class="k" style="margin: 14px 0 8px 0;">Best estimate temps (next 1–24 hours)</div>
           <div class="grid" style="margin-bottom: 14px;">
-            ${j.best_temp_next_1_12h.map(h => `
+            ${j.best_temp_next_1_24h.map(h => `
               <div class="card">
                 <div class="k">Temp at +${h.hours_ahead}h</div>
                 <div class="v">${fmtTemp(h.temp_f)}</div>

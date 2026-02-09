@@ -3,6 +3,9 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.shortcuts import render
+from django.db.models import Avg, Count
+from django.utils import timezone as dj_timezone
+
 
 import requests #type: ignore
 from datetime import datetime, date, timedelta, timezone
@@ -11,13 +14,13 @@ from timezonefinder import TimezoneFinder # type: ignore
 from urllib.parse import urlencode 
 import re
 from typing import Optional, Dict, Any
+from .models import StationBiasSample
 
 tf = TimezoneFinder()
 
 
 USER_AGENT = getattr(settings, "NWS_USER_AGENT", "MyApp/1.0 (youremail@example.com)")
 TIMEZONE = getattr(settings, "NWS_DEFAULT_TIMEZONE", "America/Los_Angeles")
-
 
 def c_to_f(c: float) -> float:
     return c * 9.0 / 5.0 + 32.0
@@ -233,8 +236,6 @@ def window_max_from_hourly(hourly_json, now_utc: datetime, hours: int):
         "period_count": len(window),
     }
 
-
-
 def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_name: str = TIMEZONE):
     if tz_name is None:
         tz_name = tz_for_latlon(lat, lon)
@@ -252,12 +253,12 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
     forecast_url = pts.get("properties", {}).get("forecast")
     hourly_url = pts.get("properties", {}).get("forecastHourly")
     station_id = pick_closest_station_id(pts, lat, lon)
+
     now_utc = datetime.now(timezone.utc).replace(microsecond=0)
     today_local = datetime.now(ZoneInfo(tz_name)).date()
     future_date = target_date > today_local
 
-    end_utc_full = end_utc 
-
+    end_utc_full = end_utc
     if target_date == today_local and now_utc < end_utc:
         end_utc = now_utc.replace(microsecond=0)
 
@@ -271,11 +272,8 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
         "window_end_utc": end_utc.isoformat(),
         "window_end_utc_full": end_utc_full.isoformat(),
         "is_future_date": future_date,
-        
     }
 
-
-    # forecast (day/night blocks)
     if forecast_url:
         try:
             fjson = get_json(forecast_url)
@@ -286,20 +284,20 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
     else:
         results["forecast_max_f"] = None
 
-    # hourly
     if hourly_url:
         try:
             hj = get_json(hourly_url)
             results["hourly_max_f"] = max_from_hourly(hj, start_utc, end_utc_full)
 
             now_utc = datetime.now(timezone.utc).replace(microsecond=0)
+
             horizons = []
-            for h in range(1, 13):
+            for h in range(1, 25):
                 item = temp_at_horizon_from_hourly(hj, now_utc, h)
                 if item:
                     horizons.append(item)
+            results["best_temp_next_1_24h"] = horizons
 
-            results["best_temp_next_1_12h"] = horizons
             nxt = next_hour_from_hourly(hj, now_utc)
             results.update(nxt)
 
@@ -318,8 +316,8 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
             w3 = window_max_from_hourly(hj, now_utc, 3)
             w6 = window_max_from_hourly(hj, now_utc, 6)
 
-            results["station_max_last_6h_f"]  = station_max_last_hours(station_id, now_utc, 6)
-            results["station_max_last_24h_f"] = station_max_last_hours(station_id, now_utc, 24)
+            results["station_max_last_6h_f"] = station_max_last_hours(station_id, now_utc, 6) if station_id else None
+            results["station_max_last_24h_f"] = station_max_last_hours(station_id, now_utc, 24) if station_id else None
 
             results["next_3h_start_utc"] = w3["start_utc"]
             results["next_3h_end_utc"] = w3["end_utc"]
@@ -337,19 +335,22 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
 
             results["debug_now_utc"] = datetime.now(timezone.utc).isoformat()
             results["debug_now_local"] = datetime.now(ZoneInfo(tz_name)).isoformat()
-            results["debug_midnight_local"] = datetime(target_date.year, target_date.month, target_date.day, tzinfo=ZoneInfo(tz_name)).isoformat()
+            results["debug_midnight_local"] = datetime(
+                target_date.year, target_date.month, target_date.day, tzinfo=ZoneInfo(tz_name)
+            ).isoformat()
             results["debug_window_start_utc"] = start_utc.isoformat()
             results["debug_window_end_utc"] = end_utc.isoformat()
-
 
         except Exception as e:
             results["hourly_error"] = str(e)
             results["hourly_max_f"] = None
+            results["best_temp_next_1_24h"] = []
             results["next_hour_start_utc"] = None
             results["next_hour_temp_f"] = None
             results["next_hour_dewpoint_f"] = None
             results["next_hour_wind_speed_mph"] = None
             results["next_hour_wind_direction"] = None
+
             results["next_3h_start_utc"] = None
             results["next_3h_end_utc"] = None
             results["next_3h_max_temp_f"] = None
@@ -363,20 +364,22 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
             results["next_6h_max_dewpoint_f"] = None
             results["next_6h_max_wind_speed_mph"] = None
             results["next_6h_period_count"] = 0
-
     else:
         results["hourly_max_f"] = None
+        results["best_temp_next_1_24h"] = []
         results["next_hour_start_utc"] = None
         results["next_hour_temp_f"] = None
         results["next_hour_dewpoint_f"] = None
         results["next_hour_wind_speed_mph"] = None
         results["next_hour_wind_direction"] = None
 
-
-    # station observations
     if station_id and not future_date:
         try:
-            results["station_running_max_f"] = max_from_station_observations(station_id, start_utc, end_utc)
+            obs_max = max_from_station_observations(station_id, start_utc, end_utc)
+            if obs_max is None:
+                latest = get_latest_station_observation(station_id)
+                obs_max = latest.get("obs_temp_f")
+            results["station_running_max_f"] = obs_max
         except Exception as e:
             results["station_error"] = str(e)
             results["station_running_max_f"] = None
@@ -384,6 +387,7 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
         results["station_running_max_f"] = None
 
     results["observed_max_f"] = results.get("station_running_max_f")
+    results["station_max_f"] = results.get("observed_max_f")
 
     forecast_candidates = [results.get("forecast_max_f"), results.get("hourly_max_f")]
     forecast_candidates = [x for x in forecast_candidates if x is not None]
@@ -392,16 +396,58 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
     best_candidates = [results.get("observed_max_f"), results.get("forecasted_max_f")]
     best_candidates = [x for x in best_candidates if x is not None]
     results["best_estimate_max_f"] = max(best_candidates) if best_candidates else None
-    results["station_max_f"] = results.get("observed_max_f")
     results["overall_max_f"] = results.get("best_estimate_max_f")
 
-    # --- next-hour best estimate (prefer recent station obs, else hourly forecast) ---
+    if (
+        station_id
+        and results.get("station_max_f") is not None
+        and results.get("forecasted_max_f") is not None
+        and target_date < today_local
+    ):
+        try:
+            record_bias_sample(
+                station_id,
+                target_date,
+                float(results["forecasted_max_f"]),
+                float(results["station_max_f"]),
+            )
+        except Exception as e:
+            results["bias_logging_error"] = str(e)
+
+    raw_fc = results.get("forecasted_max_f")
+    if station_id and raw_fc is not None:
+        cal = get_station_calibration(station_id, lookback_days=365)
+        bias = get_station_bias(station_id, lookback_days=120)
+
+        corrected_fc = None
+
+        if cal and int(cal.get("sample_count", 0)) >= 60:
+            a = float(cal["a"])
+            b = float(cal["b"])
+            corrected_fc = a + b * float(raw_fc)
+            results["calibration_a"] = a
+            results["calibration_b"] = b
+            results["calibration_sample_count"] = int(cal["sample_count"])
+            results["forecasted_max_calibrated_f"] = corrected_fc
+            results["calibration_method"] = "linear"
+        elif bias and int(bias.get("sample_count", 0)) >= 30:
+            bias_mean = float(bias["mean_error_f"])
+            corrected_fc = float(raw_fc) + bias_mean
+            results["bias_mean_f"] = bias_mean
+            results["bias_sample_count"] = int(bias["sample_count"])
+            results["forecasted_max_bias_corrected_f"] = corrected_fc
+            results["calibration_method"] = "mean_bias"
+
+        if corrected_fc is not None:
+            cal_candidates = [results.get("station_max_f"), corrected_fc]
+            cal_candidates = [x for x in cal_candidates if x is not None]
+            results["overall_max_calibrated_f"] = max(cal_candidates) if cal_candidates else None
+
     results["best_next_hour_temp_f"] = results.get("next_hour_temp_f")
     results["best_next_hour_dewpoint_f"] = results.get("next_hour_dewpoint_f")
     results["best_next_hour_wind_speed_mph"] = results.get("next_hour_wind_speed_mph")
     results["best_next_hour_wind_direction"] = results.get("next_hour_wind_direction")
 
-     # --- best estimate (next 3h / 6h): start from forecast-window maxes ---
     results["best_next_3h_max_temp_f"] = results.get("next_3h_max_temp_f")
     results["best_next_3h_max_dewpoint_f"] = results.get("next_3h_max_dewpoint_f")
     results["best_next_3h_max_wind_speed_mph"] = results.get("next_3h_max_wind_speed_mph")
@@ -410,19 +456,11 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
     results["best_next_6h_max_dewpoint_f"] = results.get("next_6h_max_dewpoint_f")
     results["best_next_6h_max_wind_speed_mph"] = results.get("next_6h_max_wind_speed_mph")
 
-    obs_max = max_from_station_observations(station_id, start_utc, end_utc)
-    if obs_max is None:
-        latest = get_latest_station_observation(station_id)
-        obs_max = latest.get("obs_temp_f")
-    results["station_running_max_f"] = obs_max
-
-    # If station exists, try latest obs and use it if it's fresh
     if station_id and not future_date:
         try:
             obs = get_latest_station_observation(station_id)
             results.update(obs)
 
-            # freshness check (90 minutes)
             if obs.get("obs_time_utc"):
                 obs_time = datetime.fromisoformat(obs["obs_time_utc"])
                 now_utc = datetime.now(timezone.utc).replace(microsecond=0)
@@ -432,46 +470,48 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
                 results["best_temp_now_obs_time_utc"] = obs.get("obs_time_utc")
 
                 FRESH_MINUTES = 20
-
                 if 0 <= age_seconds <= FRESH_MINUTES * 60:
-                    # Use obs as best estimate “right now into next hour”
                     if obs.get("obs_temp_f") is not None:
                         results["best_next_hour_temp_f"] = obs["obs_temp_f"]
                     if obs.get("obs_dewpoint_f") is not None:
                         results["best_next_hour_dewpoint_f"] = obs["obs_dewpoint_f"]
                     if obs.get("obs_wind_speed_mph") is not None:
                         results["best_next_hour_wind_speed_mph"] = obs["obs_wind_speed_mph"]
-                    # wind direction degrees vs string; keep both if you want
                     if obs.get("obs_wind_dir_deg") is not None:
                         results["best_next_hour_wind_direction"] = f"{obs['obs_wind_dir_deg']:.0f}°"
-                                        # Inject obs into 3h/6h window maxes (so real observed can override forecast)
+
                     if obs.get("obs_temp_f") is not None:
-                        results["best_next_3h_max_temp_f"] = (
-                            obs["obs_temp_f"] if results.get("best_next_3h_max_temp_f") is None
-                            else max(results["best_next_3h_max_temp_f"], obs["obs_temp_f"])
-                        )
-                        results["best_next_6h_max_temp_f"] = (
-                            obs["obs_temp_f"] if results.get("best_next_6h_max_temp_f") is None
-                            else max(results["best_next_6h_max_temp_f"], obs["obs_temp_f"])
-                        )
+                        if results.get("best_next_3h_max_temp_f") is None:
+                            results["best_next_3h_max_temp_f"] = obs["obs_temp_f"]
+                        else:
+                            results["best_next_3h_max_temp_f"] = max(results["best_next_3h_max_temp_f"], obs["obs_temp_f"])
+
+                        if results.get("best_next_6h_max_temp_f") is None:
+                            results["best_next_6h_max_temp_f"] = obs["obs_temp_f"]
+                        else:
+                            results["best_next_6h_max_temp_f"] = max(results["best_next_6h_max_temp_f"], obs["obs_temp_f"])
+
                     if obs.get("obs_dewpoint_f") is not None:
-                        results["best_next_3h_max_dewpoint_f"] = (
-                            obs["obs_dewpoint_f"] if results.get("best_next_3h_max_dewpoint_f") is None
-                            else max(results["best_next_3h_max_dewpoint_f"], obs["obs_dewpoint_f"])
-                        )
-                        results["best_next_6h_max_dewpoint_f"] = (
-                            obs["obs_dewpoint_f"] if results.get("best_next_6h_max_dewpoint_f") is None
-                            else max(results["best_next_6h_max_dewpoint_f"], obs["obs_dewpoint_f"])
-                        )
+                        if results.get("best_next_3h_max_dewpoint_f") is None:
+                            results["best_next_3h_max_dewpoint_f"] = obs["obs_dewpoint_f"]
+                        else:
+                            results["best_next_3h_max_dewpoint_f"] = max(results["best_next_3h_max_dewpoint_f"], obs["obs_dewpoint_f"])
+
+                        if results.get("best_next_6h_max_dewpoint_f") is None:
+                            results["best_next_6h_max_dewpoint_f"] = obs["obs_dewpoint_f"]
+                        else:
+                            results["best_next_6h_max_dewpoint_f"] = max(results["best_next_6h_max_dewpoint_f"], obs["obs_dewpoint_f"])
+
                     if obs.get("obs_wind_speed_mph") is not None:
-                        results["best_next_3h_max_wind_speed_mph"] = (
-                            obs["obs_wind_speed_mph"] if results.get("best_next_3h_max_wind_speed_mph") is None
-                            else max(results["best_next_3h_max_wind_speed_mph"], obs["obs_wind_speed_mph"])
-                        )
-                        results["best_next_6h_max_wind_speed_mph"] = (
-                            obs["obs_wind_speed_mph"] if results.get("best_next_6h_max_wind_speed_mph") is None
-                            else max(results["best_next_6h_max_wind_speed_mph"], obs["obs_wind_speed_mph"])
-                        )
+                        if results.get("best_next_3h_max_wind_speed_mph") is None:
+                            results["best_next_3h_max_wind_speed_mph"] = obs["obs_wind_speed_mph"]
+                        else:
+                            results["best_next_3h_max_wind_speed_mph"] = max(results["best_next_3h_max_wind_speed_mph"], obs["obs_wind_speed_mph"])
+
+                        if results.get("best_next_6h_max_wind_speed_mph") is None:
+                            results["best_next_6h_max_wind_speed_mph"] = obs["obs_wind_speed_mph"]
+                        else:
+                            results["best_next_6h_max_wind_speed_mph"] = max(results["best_next_6h_max_wind_speed_mph"], obs["obs_wind_speed_mph"])
 
         except Exception as e:
             results["latest_obs_error"] = str(e)
@@ -482,8 +522,61 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
             results["obs_wind_speed_mph"] = None
             results["obs_wind_dir_deg"] = None
 
-
     return results
+
+def record_bias_sample(station_id: str, day, forecast_high_f: float, observed_high_f: float) -> None:
+    StationBiasSample.objects.update_or_create(
+        station_id=station_id,
+        date=day,
+        defaults={
+            "forecast_high_f": float(forecast_high_f),
+            "observed_high_f": float(observed_high_f),
+            "error_f": float(observed_high_f) - float(forecast_high_f),
+        },
+    )
+
+def get_station_bias(station_id: str, lookback_days: int = 120) -> dict | None:
+    cutoff = dj_timezone.now().date() - timedelta(days=lookback_days)
+    qs = StationBiasSample.objects.filter(station_id=station_id, date__gte=cutoff)
+    agg = qs.aggregate(sample_count=Count("id"), mean_error_f=Avg("error_f"))
+    n = int(agg["sample_count"] or 0)
+    if n <= 0:
+        return None
+    return {
+        "sample_count": n,
+        "mean_error_f": float(agg["mean_error_f"] or 0.0),
+        "lookback_days": lookback_days,
+    }
+
+def get_station_calibration(station_id: str, lookback_days: int = 365) -> dict | None:
+    cutoff = dj_timezone.now().date() - timedelta(days=lookback_days)
+    qs = StationBiasSample.objects.filter(station_id=station_id, date__gte=cutoff).values(
+        "forecast_high_f", "observed_high_f"
+    )
+
+    rows = list(qs)
+    n = len(rows)
+    if n < 30:
+        return None
+
+    xs = [float(r["forecast_high_f"]) for r in rows]
+    ys = [float(r["observed_high_f"]) for r in rows]
+
+    x_mean = sum(xs) / n
+    y_mean = sum(ys) / n
+    denom = sum((x - x_mean) ** 2 for x in xs)
+    if denom == 0:
+        return None
+
+    b = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(n)) / denom
+    a = y_mean - b * x_mean
+
+    return {
+        "sample_count": n,
+        "a": float(a),
+        "b": float(b),
+        "lookback_days": lookback_days,
+    }
 
 
 # ---------------- Django views ----------------
