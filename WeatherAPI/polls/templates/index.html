@@ -440,6 +440,13 @@
       out.innerHTML = `
       
         <div class="grid">
+          
+          <div class="card">
+            <div class="k">Current</div>
+            <div class="v">${fmtTemp(j.current_temp_f)}</div>
+            <div class="meta">source: ${j.current_temp_source || "N/A"}${j.current_obs_age_minutes ? ` — age ${j.current_obs_age_minutes} min` : ""}</div>
+          </div>
+
           <div class="card">
             <div class="k">Overall max</div>
             <div class="v">${fmt(j.overall_max_f)}</div>

@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 import re
 from typing import Optional, Dict, Any
 from .models import StationBiasSample
+import threading
 
 tf = TimezoneFinder()
 
@@ -23,6 +24,7 @@ USER_AGENT = getattr(settings, "NWS_USER_AGENT", "MyApp/1.0 (youremail@example.c
 TIMEZONE = getattr(settings, "NWS_DEFAULT_TIMEZONE", "America/Los_Angeles")
 
 _req_cache: Dict[str, Any] = {}
+_cache_lock = threading.Lock()
 
 def cache_clear() -> None:
     _req_cache.clear()
@@ -545,6 +547,38 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
                 results["best_temp_now_obs_time_utc"] = obs.get("obs_time_utc")
 
                 FRESH_MINUTES = 20
+                current_temp = None
+                current_source = None
+
+                obs_temp = results.get("obs_temp_f")
+                obs_time_str = results.get("obs_time_utc")
+                if obs_temp is not None and obs_time_str:
+                    try:
+                        obs_time = datetime.fromisoformat(obs_time_str)
+                        age_seconds = (now_utc - obs_time).total_seconds()
+                        if 0 <= age_seconds <= FRESH_MINUTES * 60:
+                            current_temp = float(obs_temp)
+                            current_source = "station_obs"
+
+                            results["current_obs_age_minutes"] = round(age_seconds / 60.0, 1)
+                    except Exception:
+                        pass
+                    
+                if current_temp is None and results.get("next_hour_temp_f") is not None:
+                    current_temp = float(results.get("next_hour_temp_f"))
+                    current_source = "hourly_forecast"
+
+                if current_temp is None and results.get("nowcast_next_0_60m"):
+                    try:
+                        nm = results.get("nowcast_next_0_60m")
+                        if isinstance(nm, list) and len(nm) > 0 and nm[0].get("temp_f") is not None:
+                            current_temp = float(nm[0]["temp_f"])
+                            current_source = "nowcast"
+                    except Exception:
+                        pass
+
+                results["current_temp_f"] = round(current_temp, 2) if current_temp is not None else None
+                results["current_temp_source"] = current_source
                 if 0 <= age_seconds <= FRESH_MINUTES * 60:
                     if obs.get("obs_temp_f") is not None:
                         results["best_next_hour_temp_f"] = obs["obs_temp_f"]
