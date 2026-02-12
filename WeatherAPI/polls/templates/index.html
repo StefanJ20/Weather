@@ -247,6 +247,8 @@
 </head>
 
 <body>
+  <img src="{% static 'gifs/howard.gif' %}" style="position: absolute; right: 10%; top: 8.5%;" id="howard"/>
+  <img src="{% static 'images/howard.png' %}" alt="Howard" style="position: absolute; right: 10%; top: 8.5%;" id="howardStill"/>
   <div class="wrap">
     <div class="header">
       <h1>NWS Data</h1>
@@ -301,6 +303,21 @@
   </div>
 
   <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const howard = document.getElementById("howard");
+      const howardStill = document.getElementById("howardStill");
+      howard.style.opacity = "0";
+      if (howard) {
+        howardStill.addEventListener("mouseover", () => {
+          howard.style.opacity = "1";
+          howardStill.style.opacity = "0";
+        });
+        howardStill.addEventListener("mouseout", () => {
+          howard.style.opacity = "0";
+          howardStill.style.opacity = "1";
+        });
+      }
+    });
 
     const toNum = (x) => {
       if (x === null || x === undefined) return null;
