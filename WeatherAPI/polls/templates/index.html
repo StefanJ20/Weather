@@ -260,7 +260,6 @@
         <div class="field">
           <label for="location">Location</label>
           <select id="location">
-            <!-- Add/edit options here. data-lat / data-lon are the embedded coords. -->
             <option value="kaus" data-lat="30.1945" data-lon="-97.6699">Austin (KAUS) — Bergstrom Airport</option>
             <option value="lax" data-lat="33.93806" data-lon="-118.38889">Los Angeles (KLAX) — LAX</option>
             <option value="nyc" data-lat="40.7826" data-lon="-73.9656">New York City</option>
@@ -420,6 +419,14 @@
             <div class="meta">wind speed: ${fmtMph(j.best_next_hour_wind_speed_mph)}</div>
             <div class="meta">wind direction: ${j.best_next_hour_wind_direction || "N/A"}</div>
           </div>
+
+          <div class="card">
+            <div class="k">Overall min (today est.)</div>
+            <div class="v">${fmtTemp(j.overall_min_f)}</div>
+            <div class="meta">obs so far: ${fmtTemp(j.station_running_min_f)} | pred rem: ${fmtTemp(j.pred_low_remaining_f)}</div>
+          </div>
+
+
         </div>
 
         <hr class="hr" />

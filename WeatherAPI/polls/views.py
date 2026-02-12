@@ -22,6 +22,22 @@ tf = TimezoneFinder()
 USER_AGENT = getattr(settings, "NWS_USER_AGENT", "MyApp/1.0 (youremail@example.com)")
 TIMEZONE = getattr(settings, "NWS_DEFAULT_TIMEZONE", "America/Los_Angeles")
 
+_req_cache: Dict[str, Any] = {}
+
+def cache_clear() -> None:
+    _req_cache.clear()
+
+def cached_get_json(url: str):
+    hit = _req_cache.get(url)
+    if hit is not None:
+        return hit
+    data = get_json(url)
+    _req_cache[url] = data
+    return data
+
+def api_highest_full(request):
+    cache_clear()
+
 def c_to_f(c: float) -> float:
     return c * 9.0 / 5.0 + 32.0
 
@@ -121,7 +137,7 @@ def max_from_station_observations(station_id: str, start_utc: datetime, end_utc:
     max_temp = None
 
     while url:
-        j = get_json(url)
+        j = cached_get_json(url)
 
         for f in j.get("features", []):
             props = (f or {}).get("properties", {}) or {}
@@ -166,7 +182,7 @@ def pick_closest_station_id(point_json, lat: float, lon: float, max_candidates: 
     stations_url = point_json.get("properties", {}).get("observationStations")
     if not stations_url:
         return None, None
-    stations_json = get_json(stations_url)
+    stations_json = cached_get_json(stations_url)
     best = None
     best_d = None
     for f in stations_json.get("features", [])[:max_candidates]:
@@ -246,7 +262,7 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
         target_date = datetime.now(tz).date()
 
     pts_url = f"https://api.weather.gov/points/{lat},{lon}"
-    pts = get_json(pts_url)
+    pts = cached_get_json(pts_url)
 
     start_utc, end_utc = day_range_local(target_date, tz_name)
 
@@ -278,7 +294,7 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
 
     if forecast_url:
         try:
-            fjson = get_json(forecast_url)
+            fjson = cached_get_json(forecast_url)
             results["forecast_max_f"] = max_from_forecast_periods(fjson, start_utc, end_utc_full)
         except Exception as e:
             results["forecast_error"] = str(e)
@@ -288,11 +304,45 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
 
     if hourly_url:
         try:
-            hj = get_json(hourly_url)
+            hj = cached_get_json(hourly_url)
+            if target_date == today_local and station_id:
+                try:
+                    results["station_running_min_f"] = min_from_station_observations(station_id, start_utc, end_utc)
+                except Exception as e:
+                    results["station_min_error"] = str(e)
+                    results["station_running_min_f"] = None
+            else:
+                results["station_running_min_f"] = None
+            results["hourly_min_f"] = min_from_hourly(hj, start_utc, end_utc_full)
+            if target_date == today_local:
+                low_model = estimate_remaining_day_low_model(
+                    station_id=station_id,
+                    hourly_json=hj,
+                    now_utc=now_utc,
+                    end_utc_full=end_utc_full,
+                    lookback_minutes=180,
+                )
+                results["pred_low_remaining_f"] = low_model["pred_low_remaining_f"]
+                results["pred_low_remaining_points"] = low_model["pred_points"]
+            else:
+                results["pred_low_remaining_f"] = None
+                results["pred_low_remaining_points"] = []
+            cands = []
+            if results.get("station_running_min_f") is not None:
+                cands.append(results["station_running_min_f"])
+            if results.get("pred_low_remaining_f") is not None:
+                cands.append(results["pred_low_remaining_f"])
+
+            if cands:
+                results["best_estimate_low_f"] = min(cands)
+            else:
+                results["best_estimate_low_f"] = results.get("hourly_min_f")
+
+            results["overall_min_f"] = results.get("best_estimate_low_f")
+
             results["hourly_max_f"] = max_from_hourly(hj, start_utc, end_utc_full)
             results["forecasted_max_f"] = results["hourly_max_f"]
             results["forecast_source"] = "forecastHourly"
-            now_utc = datetime.now(timezone.utc).replace(microsecond=0)
 
             horizons = []
             for h in range(1, 25):
@@ -369,6 +419,15 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
             results["next_6h_max_dewpoint_f"] = None
             results["next_6h_max_wind_speed_mph"] = None
             results["next_6h_period_count"] = 0
+
+            results["station_running_min_f"] = None
+            results["station_min_error"] = None
+            results["hourly_min_f"] = None
+            results["pred_low_remaining_f"] = None
+            results["pred_low_remaining_points"] = []
+            results["best_estimate_low_f"] = None
+            results["overall_min_f"] = None
+
     else:
         results["hourly_max_f"] = None
         results["best_temp_next_1_24h"] = []
@@ -379,6 +438,14 @@ def highest_temp_for_day(lat: float, lon: float, target_date: date = None, tz_na
         results["forecast_source"] = "forecastHourly"
         results["next_hour_wind_speed_mph"] = None
         results["next_hour_wind_direction"] = None
+        results["station_running_min_f"] = None
+        results["station_min_error"] = results.get("station_min_error")  # or None
+        results["hourly_min_f"] = None
+        results["pred_low_remaining_f"] = None
+        results["pred_low_remaining_points"] = []
+        results["best_estimate_low_f"] = None
+        results["overall_min_f"] = None
+
 
     if station_id and not future_date:
         try:
@@ -679,7 +746,7 @@ def get_latest_station_observation(station_id: str) -> Dict[str, Any]:
     Pull latest station obs for temp/dewpoint/wind.
     """
     url = f"https://api.weather.gov/stations/{station_id}/observations/latest"
-    j = get_json(url)
+    j = cached_get_json(url)
     props = (j or {}).get("properties", {}) or {}
 
     ts = props.get("timestamp")
@@ -796,7 +863,7 @@ def get_recent_station_observations(station_id: str, now_utc: datetime, lookback
 
     rows = []
     while url:
-        j = get_json(url)
+        j = cached_get_json(url)
         for f in j.get("features", []):
             props = (f or {}).get("properties", {}) or {}
             ts = props.get("timestamp")
@@ -977,4 +1044,186 @@ def build_nowcast_layer(
         "nowcast_next_0_60m": blended,
     }
 
+def min_from_hourly(hourly_json, start_utc: datetime, end_utc: datetime):
+    """
+    /forecastHourly returns hourly periods with temperature and startTime.
+    We'll take the min temperature for hours starting inside the window.
+    """
+    min_temp = None
+    periods = hourly_json.get("properties", {}).get("periods", [])
+    for p in periods:
+        st = iso_to_dt(p["startTime"])
+        if not (start_utc <= st < end_utc):
+            continue
+
+        temp = p.get("temperature")
+        unit = (p.get("temperatureUnit") or "F").upper()
+        if temp is None:
+            continue
+
+        temp_f = c_to_f(float(temp)) if unit == "C" else float(temp)
+        if min_temp is None or temp_f < min_temp:
+            min_temp = temp_f
+    return min_temp
+
+
+def min_from_station_observations(station_id: str, start_utc: datetime, end_utc: datetime):
+    base = f"https://api.weather.gov/stations/{station_id}/observations"
+    params = {
+        "start": iso_z(start_utc),
+        "end": iso_z(end_utc),
+        "limit": 500,
+    }
+    url = f"{base}?{urlencode(params)}"
+
+    min_temp = None
+
+    while url:
+        j = cached_get_json(url)
+
+        for f in j.get("features", []):
+            props = (f or {}).get("properties", {}) or {}
+            ts = props.get("timestamp")
+            if not ts:
+                continue
+
+            t = iso_to_dt(ts)
+            if not (start_utc <= t < end_utc):
+                continue
+
+            temp_obj = props.get("temperature") or {}
+            val = temp_obj.get("value")
+            unit_code = temp_obj.get("unitCode") or ""
+            if val is None:
+                continue
+
+            val = float(val)
+            if "degC" in unit_code or unit_code.lower().endswith("c"):
+                val_f = c_to_f(val)
+            else:
+                val_f = val
+
+            if min_temp is None or val_f < min_temp:
+                min_temp = val_f
+
+        url = (j.get("pagination") or {}).get("next")
+
+    return min_temp
+
+
+def estimate_remaining_day_low_model(
+    station_id: Optional[str],
+    hourly_json,
+    now_utc: datetime,
+    end_utc_full: datetime,
+    lookback_minutes: int = 180,  # use last 3h obs for trend
+):
+    """
+    Predict the *lowest temperature from now until end_utc_full*.
+
+    Model:
+      - fit linear trend on recent station obs temps
+      - project to each future hourly start time within (now, end_utc_full)
+      - blend toward NWS hourly temp for the same hour
+      - cap deviation so trend can’t go crazy
+      - take the minimum of blended projections
+    """
+    if end_utc_full <= now_utc:
+        return {"pred_low_remaining_f": None, "pred_points": []}
+    
+    recent_obs = []
+    if station_id:
+        try:
+            recent_obs = get_recent_station_observations(
+                station_id, now_utc, lookback_minutes=lookback_minutes
+            )
+        except Exception:
+            recent_obs = []
+
+    periods = hourly_json.get("properties", {}).get("periods", []) if hourly_json else []
+    future_periods = []
+    for p in periods:
+        st = iso_to_dt(p["startTime"])
+        if st >= now_utc and st < end_utc_full:
+            future_periods.append(p)
+
+    if not future_periods:
+        return {"pred_low_remaining_f": None, "pred_points": []}
+    
+    a = b = None
+    if recent_obs and len(recent_obs) >= 4:
+        recent = recent_obs[-12:]
+        xs, ys = [], []
+        for r in recent:
+            dt_sec = (r["t"] - now_utc).total_seconds()  
+            xs.append(dt_sec)
+            ys.append(r["temp_f"])
+
+        n = len(xs)
+        x_mean = sum(xs) / n
+        y_mean = sum(ys) / n
+        denom = sum((x - x_mean) ** 2 for x in xs)
+        if denom != 0:
+            b = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(n)) / denom
+            a = y_mean - b * x_mean
+
+    pred_points = []
+    pred_low = None
+
+    for p in future_periods:
+        st = iso_to_dt(p["startTime"])
+        secs_ahead = (st - now_utc).total_seconds()
+        hours_ahead = secs_ahead / 3600.0
+
+        # NWS hourly temp
+        fc_temp = p.get("temperature")
+        unit = (p.get("temperatureUnit") or "F").upper()
+        fc_f = None
+        if fc_temp is not None:
+            fc_f = c_to_f(float(fc_temp)) if unit == "C" else float(fc_temp)
+
+        # Trend prediction at that hour
+        trend_f = None
+        if a is not None and b is not None:
+            trend_f = a + b * secs_ahead
+
+        # Blend / cap
+        if trend_f is None and fc_f is None:
+            continue
+        if trend_f is None:
+            best = fc_f
+            w_trend = 0.0
+            method = "forecast_only"
+        elif fc_f is None:
+            best = trend_f
+            w_trend = 1.0
+            method = "trend_only"
+        else:
+            # more trust in trend short-term, fade out with horizon
+            w_trend = clamp(0.85 - (hours_ahead / 12.0) * 0.45, 0.25, 0.85)
+
+            mix = w_trend * trend_f + (1.0 - w_trend) * fc_f
+
+            # cap: allow a bit more room early, less later
+            cap = 4.0 if hours_ahead <= 3 else 3.0
+            best = clamp(mix, fc_f - cap, fc_f + cap)
+            method = "blend_capped"
+
+        pred_points.append({
+            "start_utc": st.astimezone(timezone.utc).replace(microsecond=0).isoformat(),
+            "hours_ahead": round(hours_ahead, 2),
+            "temp_f": round(float(best), 2) if best is not None else None,
+            "temp_f_trend": round(float(trend_f), 2) if trend_f is not None else None,
+            "temp_f_forecast": round(float(fc_f), 2) if fc_f is not None else None,
+            "weight_trend": round(float(w_trend), 2),
+            "method": method,
+        })
+
+        if best is not None:
+            pred_low = best if pred_low is None else min(pred_low, best)
+
+    return {
+        "pred_low_remaining_f": pred_low,
+        "pred_points": pred_points,
+    }
 
