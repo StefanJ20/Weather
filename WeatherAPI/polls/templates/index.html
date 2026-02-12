@@ -247,8 +247,7 @@
 </head>
 
 <body>
-  <img src="{% static 'gifs/howard.gif' %}" style="position: absolute; right: 10%; top: 8.5%;" id="howard"/>
-  <img src="{% static 'images/howard.png' %}" alt="Howard" style="position: absolute; right: 10%; top: 8.5%;" id="howardStill"/>
+  <audio id="audio" src="{% static 'audio/howard.mp3' %}"></audio>
   <div class="wrap">
     <div class="header">
       <h1>NWS Data</h1>
@@ -256,7 +255,10 @@
         My boy gamble.
       </p>
     </div>
-
+    <div style="position: relative; bottom: 270px;">
+      <img src="{% static 'gifs/howard.gif' %}" style="position: absolute; right: -200px; top: 1%;" id="howard"/>
+      <img src="{% static 'images/howard.png' %}" alt="Howard" style="position: absolute; right: -200px; top: 1%;" id="howardStill"/>
+    </div>
     <div class="panel">
       <div class="form">
         <div class="field">
@@ -306,18 +308,52 @@
     document.addEventListener("DOMContentLoaded", () => {
       const howard = document.getElementById("howard");
       const howardStill = document.getElementById("howardStill");
+      const audio = document.getElementById("audio");
+
+      if (!howard || !howardStill || !audio) return;
+
       howard.style.opacity = "0";
-      if (howard) {
-        howardStill.addEventListener("mouseover", () => {
-          howard.style.opacity = "1";
-          howardStill.style.opacity = "0";
-        });
-        howardStill.addEventListener("mouseout", () => {
-          howard.style.opacity = "0";
-          howardStill.style.opacity = "1";
-        });
-      }
+
+      let unlocked = false;
+
+      howardStill.addEventListener("click", async () => {
+        try {
+          await audio.play(); 
+          audio.pause();
+          audio.currentTime = 0;
+          unlocked = true;
+          if (howard.style.opacity === "0") {
+            howard.style.opacity = "1";
+            howardStill.style.opacity = "0";
+            audio.play().catch(e => console.log("play failed:", e));
+          } else {
+            howard.style.opacity = "0";
+            howardStill.style.opacity = "1";
+            audio.pause();
+          }
+        } catch (e) {
+          console.log("unlock failed:", e);
+        }
+      });
+    
+      howardStill.addEventListener("mouseover", async () => {
+        if (!unlocked) return;
+        howard.style.opacity = "1";
+        howardStill.style.opacity = "0";
+        try {
+          await audio.play();
+        } catch (e) {
+          console.log("play failed:", e);
+        }
+      });
+
+      howardStill.addEventListener("mouseout", () => {
+        howard.style.opacity = "0";
+        howardStill.style.opacity = "1";
+        audio.pause();
+      });
     });
+
 
     const toNum = (x) => {
       if (x === null || x === undefined) return null;
