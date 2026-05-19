@@ -780,7 +780,7 @@ def get_latest_station_observation(station_id: str) -> Dict[str, Any]:
     Pull latest station obs for temp/dewpoint/wind.
     """
     url = f"https://api.weather.gov/stations/{station_id}/observations/latest"
-    j = cached_get_json(url)
+    j = cached_get_json(url, force_refresh=True)
     props = (j or {}).get("properties", {}) or {}
 
     ts = props.get("timestamp")
