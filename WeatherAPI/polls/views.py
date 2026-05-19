@@ -12,8 +12,6 @@ def index(request):
 
 
 def api_highest_full(request):
-    cache_clear()
-
     lat = request.GET.get("lat")
     lon = request.GET.get("lon")
     date_str = request.GET.get("date")
@@ -30,6 +28,13 @@ def api_highest_full(request):
     except ValueError:
         return HttpResponseBadRequest("Invalid 'lat' or 'lon' format.")
 
+    # Validate coordinate ranges
+    if not (-90 <= lat_f <= 90):
+        return HttpResponseBadRequest("Latitude must be between -90 and 90 degrees.")
+    
+    if not (-180 <= lon_f <= 180):
+        return HttpResponseBadRequest("Longitude must be between -180 and 180 degrees.")
+
     target_date = None
     if date_str:
         try:
@@ -37,5 +42,13 @@ def api_highest_full(request):
         except ValueError:
             return HttpResponseBadRequest("Invalid date format. Use YYYY-MM-DD.")
 
-    data = highest_temp_for_day(lat_f, lon_f, target_date, tz_name=None)
-    return JsonResponse(data)
+    # Clear cache only if we're going to proceed with the operation
+    cache_clear()
+
+    try:
+        data = highest_temp_for_day(lat_f, lon_f, target_date, tz_name=None)
+        if data is None:
+            return HttpResponseBadRequest("No weather data available for the specified location and date.")
+        return JsonResponse(data)
+    except Exception as e:
+        return HttpResponseBadRequest(f"Error processing weather data: {str(e)}")
