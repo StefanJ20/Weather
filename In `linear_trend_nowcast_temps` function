@@ -1,4 +1,0 @@
-denom = sum((x - x_mean) ** 2 for x in xs)
-
-if denom == 0:
-    return None

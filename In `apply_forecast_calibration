@@ -1,3 +1,0 @@
-a = float(cal["a"])
-b = float(cal["b"])
-corrected_fc = a + b * float(raw_fc)
