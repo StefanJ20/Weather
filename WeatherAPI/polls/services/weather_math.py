@@ -199,7 +199,10 @@ def max_from_station_observations(station_id: str, start_utc: datetime, end_utc:
     max_temp = None
 
     while url:
-        j = cached_get_json(url)
+        try:
+            j = cached_get_json(url)
+        except Exception:
+            return max_temp
 
         for f in j.get("features", []):
             props = (f or {}).get("properties", {}) or {}
@@ -247,7 +250,10 @@ def min_from_station_observations(station_id: str, start_utc: datetime, end_utc:
     min_temp = None
 
     while url:
-        j = cached_get_json(url)
+        try:
+            j = cached_get_json(url)
+        except Exception:
+            return min_temp
 
         for f in j.get("features", []):
             props = (f or {}).get("properties", {}) or {}
@@ -297,7 +303,10 @@ def pick_closest_station_id(point_json, lat: float, lon: float, max_candidates: 
     if not stations_url:
         return None, None
 
-    stations_json = cached_get_json(stations_url)
+    try:
+        stations_json = cached_get_json(stations_url)
+    except Exception:
+        return None, None
 
     best = None
     best_d = None
@@ -454,7 +463,16 @@ def temp_at_horizon_from_hourly(hourly_json, now_utc: datetime, hours_ahead: int
 
 def get_latest_station_observation(station_id: str) -> Dict[str, Any]:
     url = f"https://api.weather.gov/stations/{station_id}/observations/latest"
-    j = cached_get_json(url, force_refresh=True)
+    try:
+        j = cached_get_json(url, force_refresh=True)
+    except Exception:
+        return {
+            "obs_time_utc": None,
+            "obs_temp_f": None,
+            "obs_dewpoint_f": None,
+            "obs_wind_dir_deg": None,
+            "obs_wind_speed_mph": None,
+        }
 
     props = (j or {}).get("properties", {}) or {}
 
@@ -495,7 +513,10 @@ def get_recent_station_observations(
     rows = []
 
     while url:
-        j = cached_get_json(url)
+        try:
+            j = cached_get_json(url)
+        except Exception:
+            break
 
         for f in j.get("features", []):
             props = (f or {}).get("properties", {}) or {}
