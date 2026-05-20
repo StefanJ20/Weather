@@ -25,8 +25,7 @@
       inset: 0;
       z-index: -1;
       background: radial-gradient(1200px 600px at 50% -10%, rgba(163,56,101,0.22), transparent 60%),
-                  radial-gradient(900px 500px at 10% 20%, rgba(117,16,92,0.18), transparent 60%),
-                  var(--bg);
+                  radial-gradient(900px 500px at 10% 20%, rgba(117,16,92,0.18), transparent 60%);
       opacity: 0.75;       
       pointer-events: none;
       filter: saturate(1) blur(1px); 
@@ -363,6 +362,7 @@
         const n = Number(x);
         return Number.isFinite(n) ? n : null;
       }
+      if (typeof x === "boolean") return x ? 1 : 0;
       return null; 
     };
 
@@ -401,6 +401,7 @@
     function renderSuccess(out, j) {
       out.style.display = "block";
 
+      // Add null checks for arrays
       const nowcast = (Array.isArray(j.nowcast_next_0_60m) && j.nowcast_next_0_60m.length)
         ? `
           <div class="k" style="margin: 14px 0 8px 0;">
@@ -523,7 +524,7 @@
 
         <hr class="hr" />
       
-        <div class="k" style="margin: 0 0 8px 0;">Next 6 hours (best estimate)</div>
+        <div class="k" style="margin-bottom:8px;">Next 6 hours (best estimate)</div>
         <div class="grid" style="margin-bottom: 14px;">
           <div class="card">
             <div class="k">Max temp (6h)</div>
@@ -577,6 +578,12 @@
         const j = await resp.json();
         if (j.error) {
           renderError(out, resp.status, `${j.error}\n${j.details || ""}`);
+          return;
+        }
+
+        // Add null check for j object
+        if (!j) {
+          renderError(out, "Parse Error", "Invalid JSON response from API");
           return;
         }
 
