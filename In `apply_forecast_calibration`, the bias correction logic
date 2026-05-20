@@ -1,0 +1,2 @@
+bias_mean = float(bias["mean_error_f"])
+corrected_fc = float(raw_fc) + bias_mean
