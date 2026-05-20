@@ -68,7 +68,7 @@ def get_station_calibration(station_id: str, lookback_days: int = 365) -> dict |
 
     denom = sum((x - x_mean) ** 2 for x in xs)
 
-    if denom == 0:
+    if denom == 0 or abs(denom) < 1e-10:
         return None
 
     b = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(n)) / denom
