@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NWS</title>
+  <title>NWS Data</title>
 
   <style>
     :root {
@@ -14,38 +14,69 @@
       --text: #caccd1;
       --muted: #9ca3af;
       --accent: #a33865;
-      --guide: rgb(117, 16, 92);
+      --danger: #ffb4b4;
     }
 
     * { box-sizing: border-box; }
 
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      z-index: -1;
-      background: radial-gradient(1200px 600px at 50% -10%, rgba(163,56,101,0.22), transparent 60%),
-                  radial-gradient(900px 500px at 10% 20%, rgba(117,16,92,0.18), transparent 60%);
-      opacity: 0.75;       
-      pointer-events: none;
-      filter: saturate(1) blur(1px); 
-    }
+    html { min-height: 100%; }
 
     body {
       position: relative;
       margin: 0;
       min-height: 100vh;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
       color: var(--text);
       display: grid;
       place-items: center;
       overflow-x: hidden;
       padding: 28px 16px;
+      background-color: var(--bg);
       background-image: url("{% static 'gifs/rain.gif' %}");
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
-      animation: animate-bg 60s linear infinite, bg-hueRotate 5s linear infinite;
+      animation: animate-bg 60s linear infinite;
+    }
+
+    .ai-impression-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .ai-mini-card {
+      border-radius: 12px;
+      border: 1px solid rgba(35, 52, 68, 0.75);
+      background: rgba(2, 6, 23, 0.35);
+      padding: 10px;
+      min-height: 76px;
+    }
+
+    .ai-mini-card .meta {
+      line-height: 1.5;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: radial-gradient(1200px 600px at 50% -10%, rgba(163,56,101,0.22), transparent 60%),
+                  radial-gradient(900px 500px at 10% 20%, rgba(117,16,92,0.18), transparent 60%);
+      opacity: 0.75;
+      pointer-events: none;
+      filter: saturate(1) blur(1px);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: rgba(2, 6, 23, 0.42);
+      pointer-events: none;
     }
 
     @keyframes animate-bg {
@@ -53,24 +84,20 @@
       100% { background-position: 100% 100%; }
     }
 
-    @keyframes bg-hueRotate {
-      0% { filter: hue-rotate(0deg); }
-      100% { filter: hue-rotate(360deg); }
-    }
-
     .wrap {
       width: min(980px, 100%);
+      position: relative;
     }
 
     .header {
       text-align: center;
       margin-bottom: 16px;
-      animation: animate-header 1s ease-in-out;
+      animation: animate-header 700ms ease-out both;
     }
 
     @keyframes animate-header {
-      0% { transform: translateY(-500px) rotate(-90deg); opacity: 0.5; }
-      100% { transform: translateY(0px) rotate(0deg); opacity: 1; }
+      0% { transform: translateY(-80px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
     }
 
     h1 {
@@ -87,6 +114,8 @@
     }
 
     .panel {
+      position: relative;
+      overflow: hidden;
       background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 24%), var(--panel);
       border: 1px solid var(--border);
       border-radius: 16px;
@@ -102,8 +131,14 @@
       background-repeat: no-repeat;
       position: absolute;
       inset: 0;
-      z-index: -1;
-      opacity: 0.1;
+      z-index: 0;
+      opacity: 0.08;
+      pointer-events: none;
+    }
+
+    .panel > * {
+      position: relative;
+      z-index: 1;
     }
 
     .form {
@@ -130,9 +165,11 @@
       color: var(--text);
       border-radius: 12px;
       border: 1px solid var(--border);
-      background: rgba(2, 6, 23, 0.35);
+      background: rgba(2, 6, 23, 0.55);
       outline: none;
     }
+
+
 
     input::placeholder { color: rgba(156,163,175,0.65); }
 
@@ -154,14 +191,19 @@
       cursor: pointer;
       border-color: rgba(163,56,101,0.6);
       background: linear-gradient(180deg, rgba(163,56,101,0.25), rgba(163,56,101,0.10));
-      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease, opacity 120ms ease;
       font-weight: 650;
     }
 
-    button:hover {
+    button:hover:not(:disabled) {
       transform: translateY(-1px);
       border-color: rgba(163,56,101,0.9);
       box-shadow: 0 10px 24px rgba(163,56,101,0.12);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.62;
     }
 
     .hint {
@@ -185,14 +227,14 @@
     .card {
       border-radius: 14px;
       border: 1px solid var(--border);
-      background: rgba(2, 6, 23, 0.35);
+      background: rgba(2, 6, 23, 0.55);
       padding: 12px;
       min-height: 88px;
     }
 
     .k { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
-    .v { font-size: 20px; font-weight: 750; line-height: 1.1; }
-    .meta { margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .v { font-size: 20px; font-weight: 750; line-height: 1.1; overflow-wrap: anywhere; }
+    .meta { margin-top: 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 
     .hr {
       height: 1px;
@@ -202,7 +244,7 @@
     }
 
     .error {
-      color: #ffb4b4;
+      color: var(--danger);
       background: rgba(163, 56, 101, 0.10);
       border: 1px solid rgba(163, 56, 101, 0.45);
       padding: 12px;
@@ -216,7 +258,7 @@
       padding: 12px;
       border-radius: 14px;
       border: 1px solid var(--border);
-      background: rgba(2, 6, 23, 0.35);
+      background: rgba(2, 6, 23, 0.55);
       color: var(--text);
       overflow: auto;
       font-size: 12px;
@@ -233,62 +275,138 @@
       font-size: 12px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
+    .confidence {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: 0.3px;
+      border: 1px solid rgba(156,163,175,0.35);
+      background: rgba(156,163,175,0.10);
+      color: var(--text);
+    }
 
+    .confidence-high {
+      border-color: rgba(120, 255, 180, 0.45);
+      background: rgba(120, 255, 180, 0.10);
+    }
+
+    .confidence-medium {
+      border-color: rgba(255, 214, 120, 0.45);
+      background: rgba(255, 214, 120, 0.10);
+    }
+
+    .confidence-low {
+      border-color: rgba(255, 180, 180, 0.45);
+      background: rgba(255, 180, 180, 0.10);
+    }
+
+    #howard {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    #howardStill {
+        opacity: 1;
+        cursor: pointer;
+        pointer-events: none;
+    }
+
+    #howardStill:hover,
+    #howard:hover {
+        transform: scale(2);
+    }
+
+    .mascot {
+        position: relative;
+        width: 260px;
+        height: 260px;
+        margin: -10px auto -38px auto;
+        z-index: 5;
+    }
+
+    .mascot img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        transition: opacity 140ms ease, transform 140ms ease;
+    }
+
+    @media (max-width: 520px) {
+      .mascot {
+          width: 200px;
+          height: 200px;
+          margin: -4px auto -28px auto;
+      }
+    }
     @media (max-width: 900px) {
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
+
     @media (max-width: 520px) {
       .form { grid-template-columns: 1fr; }
       .grid { grid-template-columns: 1fr; }
       button { max-width: 100%; }
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+      }
+    }
   </style>
 </head>
 
 <body>
-  <audio id="audio" src="{% static 'audio/howard.mp3' %}"></audio>
+  <audio id="audio" src="{% static 'audio/howard.mp3' %}" preload="none"></audio>
+
   <div class="wrap">
     <div class="header">
       <h1>NWS Data</h1>
-      <p class="sub">
-        I'm so big and fat Stewie.
-      </p>
+      <p class="sub">Highest, lowest, current, nowcast, and short-window weather estimates.</p>
     </div>
-    <div style="position: relative; bottom: 270px;">
-      <img src="{% static 'gifs/howard.gif' %}" style="position: absolute; right: -200px; top: 1%;" id="howard"/>
-      <img src="{% static 'images/howard.png' %}" alt="Howard" style="position: absolute; right: -200px; top: 1%;" id="howardStill"/>
+
+    <div class="mascot" aria-hidden="true">
+      <img src="{% static 'gifs/howard.gif' %}" alt="" id="howard" />
+      <img src="{% static 'images/howard.png' %}" alt="" id="howardStill" />
     </div>
+
     <div class="panel">
       <div class="form">
         <div class="field">
           <label for="location">Location</label>
           <select id="location">
-            <option value="kaus" data-lat="30.1945" data-lon="-97.6699">Austin (KAUS) — Bergstrom Airport</option>
+            <option value="aus" data-lat="30.1945" data-lon="-97.6699">Austin (KAUS) — Bergstrom Airport</option>
             <option value="lax" data-lat="33.93806" data-lon="-118.38889">Los Angeles (KLAX) — LAX</option>
             <option value="nyc" data-lat="40.7826" data-lon="-73.9656">New York City</option>
             <option value="chi" data-lat="41.7868" data-lon="-87.7522">Chicago</option>
             <option value="mia" data-lat="25.7923" data-lon="-80.2823">Miami</option>
             <option value="den" data-lat="39.8563" data-lon="-104.6764">Denver</option>
-            <option value="phl" data-lat="39.8730" data-lon="-75.2437">Philidelphia</option>
-            <option value="vgs" data-lat="36.0831" data-lon="-115.1482">Las Vegas</option>
-            <option value="stl" data-lat="47.44472" data-lon="-122.31361">Seattle</option>
-            <option value="dc" data-lat="38.8501" data-lon="-77.0392">Washington DC</option>
-            <option value="sf" data-lat="37.6191" data-lon="-122.3816">San Fransisco</option>
+            <option value="phl" data-lat="39.8730" data-lon="-75.2437">Philadelphia</option>
+            <option value="las" data-lat="36.0831" data-lon="-115.1482">Las Vegas</option>
+            <option value="sea" data-lat="47.44472" data-lon="-122.31361">Seattle</option>
+            <option value="dc" data-lat="38.8501" data-lon="-77.0392">Washington, DC</option>
+            <option value="sfo" data-lat="37.6191" data-lon="-122.3816">San Francisco</option>
             <option value="atl" data-lat="33.64028" data-lon="-84.42694">Atlanta</option>
-            <option value="min" data-lat="44.88306" data-lon="-93.22889">Minneapolis</option>
-            <option value="phn" data-lat="33.427799" data-lon="-112.003465">Pheonix</option>
+            <option value="msp" data-lat="44.88306" data-lon="-93.22889">Minneapolis</option>
+            <option value="phx" data-lat="33.427799" data-lon="-112.003465">Phoenix</option>
             <option value="bos" data-lat="42.36056" data-lon="-71.01056">Boston</option>
-            <option value="hst" data-lat="29.98440" data-lon="-95.36074">Houston</option>
-            <option value="dal" data-lat="32.89743" data-lon="-97.02196">Dallas</option>
-            <option value="san" data-lat="29.53278" data-lon="-98.46361">San Antonio</option>
+            <option value="iah" data-lat="29.98440" data-lon="-95.36074">Houston</option>
+            <option value="dfw" data-lat="32.89743" data-lon="-97.02196">Dallas</option>
+            <option value="sat" data-lat="29.53278" data-lon="-98.46361">San Antonio</option>
             <option value="okc" data-lat="35.38861" data-lon="-97.60028">Oklahoma City</option>
-            <option value="nor" data-lat="29.99278" data-lon="-90.25083">New Orleans</option>
+            <option value="msy" data-lat="29.99278" data-lon="-90.25083">New Orleans</option>
           </select>
         </div>
 
         <div class="field">
-          <label for="date">Date (YYYY-MM-DD, optional)</label>
-          <input id="date" placeholder="leave empty for today" />
+          <label for="date">Date</label>
+          <input id="date" type="date" />
         </div>
 
         <div class="actions">
@@ -296,64 +414,26 @@
         </div>
       </div>
 
-      <div class="hint">
-        Blank date uses “today” in the location’s timezone (server-side).
-      </div>
-
+      <div class="hint">Blank date uses today in the location's timezone.</div>
       <div id="output" class="result"></div>
     </div>
   </div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const howard = document.getElementById("howard");
-      const howardStill = document.getElementById("howardStill");
-      const audio = document.getElementById("audio");
 
-      if (!howard || !howardStill || !audio) return;
+    const confidenceClass = (value) => {
+        const v = String(value || "").toLowerCase();
+        if (v === "high") return "confidence-high";
+        if (v === "medium") return "confidence-medium";
+        return "confidence-low";
+    };
 
-      howard.style.opacity = "0";
+    const confidenceHTML = (value) => {
+        const label = value ? String(value).toUpperCase() : "LOW";
+        return `<span class="confidence ${confidenceClass(value)}">${escapeHTML(label)}</span>`;
+    };
 
-      let unlocked = false;
-
-      howardStill.addEventListener("click", async () => {
-        try {
-          await audio.play(); 
-          audio.pause();
-          audio.currentTime = 0;
-          unlocked = true;
-          if (howard.style.opacity === "0") {
-            howard.style.opacity = "1";
-            howardStill.style.opacity = "0";
-            audio.play().catch(e => console.log("play failed:", e));
-          } else {
-            howard.style.opacity = "0";
-            howardStill.style.opacity = "1";
-            audio.pause();
-          }
-        } catch (e) {
-          console.log("unlock failed:", e);
-        }
-      });
-    
-      howardStill.addEventListener("mouseover", async () => {
-        if (!unlocked) return;
-        howard.style.opacity = "1";
-        howardStill.style.opacity = "0";
-        try {
-          await audio.play();
-        } catch (e) {
-          console.log("play failed:", e);
-        }
-      });
-
-      howardStill.addEventListener("mouseout", () => {
-        howard.style.opacity = "0";
-        howardStill.style.opacity = "1";
-        audio.pause();
-      });
-    });
-
+    const $ = (id) => document.getElementById(id);
 
     const toNum = (x) => {
       if (x === null || x === undefined) return null;
@@ -362,24 +442,37 @@
         const n = Number(x);
         return Number.isFinite(n) ? n : null;
       }
-      if (typeof x === "boolean") return x ? 1 : 0;
-      return null; 
+      return null;
     };
+
+    const escapeHTML = (value) => String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
 
     const fmtTemp = (x) => {
       const n = toNum(x);
-      return (n === null) ? "N/A" : `${n.toFixed(2)} °F`;
+      return n === null ? "N/A" : `${n.toFixed(2)} °F`;
     };
 
     const fmtMph = (x) => {
       const n = toNum(x);
-      return (n === null) ? "N/A" : `${n.toFixed(1)} mph`;
+      return n === null ? "N/A" : `${n.toFixed(1)} mph`;
     };
 
-    const fmt = fmtTemp;
+    const fmtNumber = (x, digits = 1) => {
+      const n = toNum(x);
+      return n === null ? "N/A" : n.toFixed(digits);
+    };
+
+    const tempHTML = (x) => escapeHTML(fmtTemp(x));
+    const mphHTML = (x) => escapeHTML(fmtMph(x));
+    const textHTML = (x) => escapeHTML(x ?? "N/A");
 
     function getSelectedCoords() {
-      const sel = document.getElementById("location");
+      const sel = $("location");
       const opt = sel.options[sel.selectedIndex];
       return {
         lat: (opt.dataset.lat || "").trim(),
@@ -390,207 +483,448 @@
 
     function renderError(out, status, text) {
       out.style.display = "block";
-      out.innerHTML = `<div class="error">Error ${status}:\n${text}</div>`;
+      out.innerHTML = `<div class="error">Error ${escapeHTML(status)}:\n${escapeHTML(text)}</div>`;
     }
 
     function renderLoading(out) {
       out.style.display = "block";
-      out.innerHTML = `<div class="card"><div class="k">Status</div><div class="v">Loading…</div><div class="meta">Fetching NWS data…</div></div>`;
+      out.innerHTML = `
+        <div class="card">
+          <div class="k">Status</div>
+          <div class="v">Loading...</div>
+          <div class="meta">Fetching NWS data...</div>
+        </div>
+      `;
+    }
+
+    function renderNowcast(j) {
+      if (Array.isArray(j.nowcast_next_0_60m) && j.nowcast_next_0_60m.length) {
+        return `
+          <div class="k" style="margin: 14px 0 8px 0;">
+            Nowcast (next 0-60 minutes)
+            ${j.nowcast_method ? ` <span class="badge">${textHTML(j.nowcast_method)}</span>` : ""}
+          </div>
+          <div class="grid" style="margin-bottom: 14px;">
+            ${j.nowcast_next_0_60m.map((p) => `
+              <div class="card">
+                <div class="k">Temp at +${textHTML(p.minutes_ahead)}m</div>
+                <div class="v">${tempHTML(p.temp_f)}</div>
+                <div class="meta">trend: ${tempHTML(p.temp_f_trend)} | w: ${textHTML(fmtNumber(p.weight_trend, 2))}</div>
+              </div>
+            `).join("")}
+          </div>
+          ${j.nowcast_obs_age_minutes != null ? `<div class="meta" style="margin:-6px 0 12px 0;">obs age: ${textHTML(fmtNumber(j.nowcast_obs_age_minutes, 1))} min</div>` : ""}
+        `;
+      }
+
+      if (j.nowcast_error) {
+        return `<div class="meta" style="margin: 14px 0 14px 0; color:var(--danger);">nowcast_error: ${textHTML(j.nowcast_error)}</div>`;
+      }
+
+      return "";
+    }
+
+    function renderHorizons(j) {
+      if (!Array.isArray(j.best_temp_next_1_24h) || !j.best_temp_next_1_24h.length) return "";
+
+      return `
+        <div class="k" style="margin: 14px 0 8px 0;">Forecast temps (next 1-24 hours)</div>
+        <div class="grid" style="margin-bottom: 14px;">
+          ${j.best_temp_next_1_24h.map((h) => `
+            <div class="card">
+              <div class="k">Temp at +${textHTML(h.hours_ahead)}h</div>
+              <div class="v">${tempHTML(h.temp_f)}</div>
+              <div class="meta">
+                  ${escapeHTML(h.start_local_label || h.start_local || h.start_utc || "N/A")}
+                  ${h.method ? ` | ${escapeHTML(h.method)}` : ""}
+                  ${h.raw_temp_f != null ? ` | raw: ${tempHTML(h.raw_temp_f)}` : ""}
+              </div>
+              <div class="meta">confidence: ${confidenceHTML(h.confidence)}</div>
+            </div>
+          `).join("")}
+        </div>
+      `;
     }
 
     function renderSuccess(out, j) {
+      if (!j || typeof j !== "object") {
+        renderError(out, "Parse Error", "Invalid JSON response from API");
+        return;
+      }
+
       out.style.display = "block";
 
-      // Add null checks for arrays
-      const nowcast = (Array.isArray(j.nowcast_next_0_60m) && j.nowcast_next_0_60m.length)
-        ? `
-          <div class="k" style="margin: 14px 0 8px 0;">
-            Nowcast (next 0–60 minutes)
-            ${j.nowcast_method ? ` <span class="badge">${j.nowcast_method}</span>` : ""}
-          </div>
-          <div class="grid" style="margin-bottom: 14px;">
-            ${j.nowcast_next_0_60m.map(p => `
-              <div class="card">
-                <div class="k">Temp at +${p.minutes_ahead}m</div>
-                <div class="v">${fmtTemp(p.temp_f)}</div>
-                <div class="meta">trend: ${fmtTemp(p.temp_f_trend)} | w: ${p.weight_trend}</div>
-              </div>
-            `).join("")}
-          </div>
-          ${j.nowcast_obs_age_minutes != null ? `<div class="meta" style="margin:-6px 0 12px 0;">obs age: ${j.nowcast_obs_age_minutes} min</div>` : ""}
-        `
-        : (j.nowcast_error
-          ? `<div class="meta" style="margin: 14px 0 14px 0; color:#ffb4b4;">nowcast_error: ${j.nowcast_error}</div>`
-          : "");
-
-        
-      const next1to8 = (Array.isArray(j.best_temp_next_1_24h) && j.best_temp_next_1_24h.length)
-        ? `
-          <div class="k" style="margin: 14px 0 8px 0;">Best estimate temps (next 1–24 hours)</div>
-          <div class="grid" style="margin-bottom: 14px;">
-            ${j.best_temp_next_1_24h.map(h => `
-              <div class="card">
-                <div class="k">Temp at +${h.hours_ahead}h</div>
-                <div class="v">${fmtTemp(h.temp_f)}</div>
-                <div class="meta">${h.start_utc || "N/A"}</div>
-              </div>
-            `).join("")}
-          </div>
-        `
+      const obsAge = j.current_obs_age_minutes != null
+        ? ` — age ${textHTML(fmtNumber(j.current_obs_age_minutes, 1))} min`
         : "";
-        
+
       out.innerHTML = `
-      
         <div class="grid">
-          
           <div class="card">
             <div class="k">Current</div>
-            <div class="v">${fmtTemp(j.current_temp_f)}</div>
-            <div class="meta">source: ${j.current_temp_source || "N/A"}${j.current_obs_age_minutes ? ` — age ${j.current_obs_age_minutes} min` : ""}</div>
+            <div class="v">${tempHTML(j.current_temp_f)}</div>
+            <div class="meta">source: ${textHTML(j.current_temp_source)}${obsAge}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.current_temp_confidence)}</div>
           </div>
 
           <div class="card">
             <div class="k">Overall max</div>
-            <div class="v">${fmt(j.overall_max_f)}</div>
-            <div class="meta">date: ${j.date} (${j.timezone})</div>
+            <div class="v">${tempHTML(j.overall_max_f)}</div>
+            <div class="meta">date: ${textHTML(j.date)} (${textHTML(j.timezone)})</div>
+            <div class="meta">confidence: ${confidenceHTML(j.overall_max_confidence)}</div>
           </div>
-        
+
           <div class="card">
-            <div class="k">Forecast max (periods)</div>
-            <div class="v">${fmt(j.forecast_max_f)}</div>
-            ${j.forecast_error ? `<div class="meta" style="color:#ffb4b4;">forecast_error: ${j.forecast_error}</div>` : ""}
+            <div class="k">Display forecast max</div>
+            <div class="v">${tempHTML(j.display_forecasted_max_f ?? j.forecasted_max_f)}</div>
+            <div class="meta">source: ${textHTML(j.display_forecasted_max_source ?? j.forecast_source)}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.display_forecasted_max_confidence ?? j.forecasted_max_confidence)}</div>
           </div>
-        
+
           <div class="card">
             <div class="k">Hourly forecast max</div>
-            <div class="v">${fmt(j.hourly_max_f)}</div>
-            ${j.hourly_error ? `<div class="meta" style="color:#ffb4b4;">hourly_error: ${j.hourly_error}</div>` : ""}
+            <div class="v">${tempHTML(j.hourly_max_f)}</div>
+            ${j.hourly_error ? `<div class="meta" style="color:var(--danger);">hourly_error: ${textHTML(j.hourly_error)}</div>` : ""}
           </div>
-        
+
+          <div class="card">
+            <div class="k">Period forecast max</div>
+            <div class="v">${tempHTML(j.forecast_max_f)}</div>
+            <div class="meta">debug/fallback only</div>
+            ${j.forecast_error ? `<div class="meta" style="color:var(--danger);">forecast_error: ${textHTML(j.forecast_error)}</div>` : ""}
+          </div>
+
           <div class="card">
             <div class="k">Station observed max</div>
-            <div class="v">${fmt(j.station_max_f)}</div>
-            <div class="meta">station: ${j.station_id || "N/A"}</div>
-            ${j.station_error ? `<div class="meta" style="color:#ffb4b4;">station_error: ${j.station_error}</div>` : ""}
+            <div class="v">${tempHTML(j.station_max_f)}</div>
+            <div class="meta">station: ${textHTML(j.station_id)}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.station_max_confidence)}</div>
+            ${j.station_error ? `<div class="meta" style="color:var(--danger);">station_error: ${textHTML(j.station_error)}</div>` : ""}
           </div>
-        
+
           <div class="card">
             <div class="k">Best next hour estimate</div>
-            <div class="v">${fmtTemp(j.best_next_hour_temp_f)}</div>
-            <div class="meta">dewpoint: ${fmtTemp(j.best_next_hour_dewpoint_f)}</div>
-            <div class="meta">wind speed: ${fmtMph(j.best_next_hour_wind_speed_mph)}</div>
-            <div class="meta">wind direction: ${j.best_next_hour_wind_direction || "N/A"}</div>
+            <div class="v">${tempHTML(j.best_next_hour_temp_f)}</div>
+            <div class="meta">temp confidence: ${confidenceHTML(j.best_next_hour_temp_confidence)}</div>
+            <div class="meta">
+              dewpoint: ${tempHTML(j.best_next_hour_dewpoint_f)}
+              ${confidenceHTML(j.best_next_hour_dewpoint_confidence)}
+            </div>
+            <div class="meta">
+              wind speed: ${mphHTML(j.best_next_hour_wind_speed_mph)}
+              ${confidenceHTML(j.best_next_hour_wind_speed_confidence)}
+            </div>
+            <div class="meta">
+              wind direction: ${textHTML(j.best_next_hour_wind_direction)}
+              ${confidenceHTML(j.best_next_hour_wind_direction_confidence)}
+            </div>
           </div>
 
           <div class="card">
-            <div class="k">Overall min (today est.)</div>
-            <div class="v">${fmtTemp(j.overall_min_f)}</div>
-            <div class="meta">obs so far: ${fmtTemp(j.station_running_min_f)} | pred rem: ${fmtTemp(j.pred_low_remaining_f)}</div>
+            <div class="k">Overall min</div>
+            <div class="v">${tempHTML(j.overall_min_f)}</div>
+            <div class="meta">obs so far: ${tempHTML(j.station_running_min_f)} | pred rem: ${tempHTML(j.pred_low_remaining_f)}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.overall_min_confidence)}</div>
           </div>
-
-
         </div>
 
         <hr class="hr" />
-
-        ${nowcast}
-
+        ${renderNowcast(j)}
         <hr class="hr" />
-      
-        ${next1to8}
-
+        ${renderHorizons(j)}
         <hr class="hr" />
-      
-        <div class="k" style="margin: 0 0 8px 0;">Next 3 hours (best estimate)</div>
+
+        <div class="k" style="margin: 0 0 8px 0;">Next 3 hours</div>
         <div class="grid" style="margin-bottom: 14px;">
           <div class="card">
             <div class="k">Max temp (3h)</div>
-            <div class="v">${fmtTemp(j.best_next_3h_max_temp_f)}</div>
-            <div class="meta">${j.next_3h_start_utc || "N/A"} → ${j.next_3h_end_utc || "N/A"}</div>
+            <div class="v">${tempHTML(j.best_next_3h_max_temp_f)}</div>
+            <div class="meta">${textHTML(j.next_3h_start_utc)} -> ${textHTML(j.next_3h_end_utc)}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.best_next_3h_max_temp_confidence)}</div>
           </div>
           <div class="card">
             <div class="k">Max dew point (3h)</div>
-            <div class="v">${fmtTemp(j.best_next_3h_max_dewpoint_f)}</div>
+            <div class="v">${tempHTML(j.best_next_3h_max_dewpoint_f)}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.best_next_3h_max_dewpoint_confidence)}</div>
           </div>
           <div class="card">
             <div class="k">Max wind speed (3h)</div>
-            <div class="v">${fmtMph(j.best_next_3h_max_wind_speed_mph)}</div>
+            <div class="v">${mphHTML(j.best_next_3h_max_wind_speed_mph)}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.best_next_3h_max_wind_speed_confidence)}</div>
           </div>
           <div class="card">
             <div class="k">Periods used</div>
-            <div class="v">${j.next_3h_period_count ?? 0}</div>
+            <div class="v">${textHTML(j.next_3h_period_count ?? 0)}</div>
           </div>
         </div>
 
         <hr class="hr" />
-      
-        <div class="k" style="margin-bottom:8px;">Next 6 hours (best estimate)</div>
+
+        <div class="k" style="margin-bottom:8px;">Next 6 hours</div>
         <div class="grid" style="margin-bottom: 14px;">
           <div class="card">
             <div class="k">Max temp (6h)</div>
-            <div class="v">${fmtTemp(j.best_next_6h_max_temp_f)}</div>
-            <div class="meta">${j.next_6h_start_utc || "N/A"} → ${j.next_6h_end_utc || "N/A"}</div>
+            <div class="v">${tempHTML(j.best_next_6h_max_temp_f)}</div>
+            <div class="meta">${textHTML(j.next_6h_start_utc)} -> ${textHTML(j.next_6h_end_utc)}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.best_next_6h_max_temp_confidence)}</div>
           </div>
           <div class="card">
             <div class="k">Max dew point (6h)</div>
-            <div class="v">${fmtTemp(j.best_next_6h_max_dewpoint_f)}</div>
+            <div class="v">${tempHTML(j.best_next_6h_max_dewpoint_f)}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.best_next_6h_max_dewpoint_confidence)}</div>
           </div>
           <div class="card">
             <div class="k">Max wind speed (6h)</div>
-            <div class="v">${fmtMph(j.best_next_6h_max_wind_speed_mph)}</div>
+            <div class="v">${mphHTML(j.best_next_6h_max_wind_speed_mph)}</div>
+            <div class="meta">confidence: ${confidenceHTML(j.best_next_6h_max_wind_speed_confidence)}</div>
           </div>
           <div class="card">
             <div class="k">Periods used</div>
-            <div class="v">${j.next_6h_period_count ?? 0}</div>
+            <div class="v">${textHTML(j.next_6h_period_count ?? 0)}</div>
           </div>
         </div>
-      
+
         <hr class="hr" />
-      
-        <div class="k" style="margin-bottom:8px;">Raw JSON</div>
-        <pre>${JSON.stringify(j, null, 2)}</pre>
+        <div class="k" style="margin-bottom:8px;">AI's Impression</div>
+          <div class="ai-impression">
+            <div class="ai-impression-head">
+              <div>
+                <div class="k">Prediction read</div>
+                <div class="ai-title" id="aiImpressionTitle">Waiting for analysis...</div>
+              </div>
+            
+              <div class="ai-confidence">
+                <span class="k">AI confidence</span>
+                <span id="aiConfidenceBadge" class="confidence confidence-low">PENDING</span>
+              </div>
+            </div>
+          
+            <div id="aiImpressionText" class="ai-impression-body">
+              Fetch weather data, then run the AI analysis to get a cautious interpretation of the prediction quality.
+            </div>
+          
+            <div class="ai-impression-grid">
+              <div class="ai-mini-card">
+                <div class="k">Main concern</div>
+                <div id="aiMainConcern" class="meta">N/A</div>
+              </div>
+            
+              <div class="ai-mini-card">
+                <div class="k">Signal quality</div>
+                <div id="aiSignalQuality" class="meta">N/A</div>
+              </div>
+
+              <div class="ai-mini-card">
+                <div class="k">Why confidence</div>
+                <div id="aiWhyConfidence" class="meta">N/A</div>
+              </div>
+
+              <div class="ai-mini-card">
+                <div class="k">Temperature read</div>
+                <div id="aiTemperatureRead" class="meta">N/A</div>
+              </div>
+
+              <div class="ai-mini-card">
+                <div class="k">Dew point / wind read</div>
+                <div id="aiDewWindRead" class="meta">N/A</div>
+              </div>
+            
+              <div class="ai-mini-card">
+                <div class="k">Recommendation</div>
+                <div id="aiRecommendation" class="meta">N/A</div>
+              </div>
+            </div>
+          </div>
       `;
     }
 
+    function renderAIImpression(ai) {
+      const title = $("aiImpressionTitle");
+      const badge = $("aiConfidenceBadge");
+      const text = $("aiImpressionText");
+      const concern = $("aiMainConcern");
+      const signal = $("aiSignalQuality");
+      const recommendation = $("aiRecommendation");
+      const why = $("aiWhyConfidence");
+      const tempRead = $("aiTemperatureRead");
+      const dewWind = $("aiDewWindRead");
+    
+      if (!title || !badge || !text || !concern || !signal || !recommendation) {
+        return;
+      }
+    
+      const confidence = String(ai?.confidence || "low").toLowerCase();
+      const safeConfidence = ["high", "medium", "low"].includes(confidence)
+        ? confidence
+        : "low";
+    
+      title.textContent = ai?.title || "Prediction impression";
+      badge.className = `confidence ${confidenceClass(safeConfidence)}`;
+      badge.textContent = safeConfidence.toUpperCase();
+    
+      text.textContent = ai?.impression || "No AI impression available.";
+      concern.textContent = ai?.main_concern || "N/A";
+      signal.textContent = ai?.signal_quality || "N/A";
+      recommendation.textContent = ai?.recommendation || "N/A";
+    
+      if (why) why.textContent = ai?.why_confidence || "N/A";
+      if (tempRead) tempRead.textContent = ai?.temperature_read || "N/A";
+      if (dewWind) dewWind.textContent = ai?.dewpoint_wind_read || "N/A";
+    }
+    async function fetchAIImpression(weatherData) {
+      renderAIImpression({
+        title: "Analyzing prediction...",
+        confidence: "low",
+        impression: "The local model is reviewing the current observation, nowcast, grid forecast, wind, dew point, confidence labels, and source handoffs.",
+        main_concern: "Pending",
+        signal_quality: "Pending",
+        recommendation: "Pending",
+      });
+    
+      try {
+        const resp = await fetch("/api/weather-ai-impression/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ weather: weatherData }),
+        });
+      
+        const data = await resp.json();
+      
+        if (!resp.ok || data.error) {
+          renderAIImpression({
+            title: "AI impression unavailable",
+            confidence: "low",
+            impression: data.error || "The local model did not return a usable response.",
+            main_concern: "Local model error",
+            signal_quality: "Unavailable",
+            recommendation: "Use the numeric cards and confidence badges instead.",
+          });
+          return;
+        }
+      
+        renderAIImpression(data);
+      } catch (err) {
+        renderAIImpression({
+          title: "AI impression unavailable",
+          confidence: "low",
+          impression: err?.message || String(err),
+          main_concern: "Network or local model error",
+          signal_quality: "Unavailable",
+          recommendation: "Confirm the local Hugging Face model can load on CUDA.",
+        });
+      }
+    }
 
-    document.getElementById("fetchBtn").addEventListener("click", async () => {
+    async function fetchWeather() {
+      const fetchBtn = $("fetchBtn");
+      const out = $("output");
       const { lat, lon } = getSelectedCoords();
-      const date = document.getElementById("date").value.trim();
+      const date = $("date").value.trim();
 
-      const out = document.getElementById("output");
-      renderLoading(out);
+      if (!lat || !lon || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
+        renderError(out, "Input", "Selected location is missing valid coordinates.");
+        return;
+      }
 
       const params = new URLSearchParams({ lat, lon });
       if (date) params.set("date", date);
 
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 35000);
+
+      fetchBtn.disabled = true;
+      fetchBtn.textContent = "Fetching...";
+      renderLoading(out);
+
       try {
-        const resp = await fetch(`/api/highest-full/?${params.toString()}`);
+        const resp = await fetch(`/api/highest-full/?${params.toString()}`, {
+          method: "GET",
+          headers: { "Accept": "application/json" },
+          signal: controller.signal,
+        });
+
         const contentType = resp.headers.get("content-type") || "";
+        let body;
+
+        if (contentType.includes("application/json")) {
+          body = await resp.json();
+        } else {
+          body = await resp.text();
+        }
 
         if (!resp.ok) {
-          const text = contentType.includes("application/json")
-            ? JSON.stringify(await resp.json(), null, 2)
-            : await resp.text();
-          renderError(out, resp.status, text);
+          renderError(out, resp.status, typeof body === "string" ? body : JSON.stringify(body, null, 2));
           return;
         }
 
-        const j = await resp.json();
-        if (j.error) {
-          renderError(out, resp.status, `${j.error}\n${j.details || ""}`);
-          return;
-        }
-
-        // Add null check for j object
-        if (!j) {
+        if (!body || typeof body !== "object") {
           renderError(out, "Parse Error", "Invalid JSON response from API");
           return;
         }
 
-        renderSuccess(out, j);
+        if (body.error) {
+          renderError(out, resp.status, `${body.error}\n${body.details || ""}`);
+          return;
+        }
+
+        renderSuccess(out, body);
+        await fetchAIImpression(body);
       } catch (err) {
-        renderError(out, "Network", err?.message || String(err));
+        const message = err && err.name === "AbortError"
+          ? "Request timed out. Try again."
+          : (err && err.message) || String(err);
+        renderError(out, "Network", message);
+      } finally {
+        window.clearTimeout(timeoutId);
+        fetchBtn.disabled = false;
+        fetchBtn.textContent = "Fetch";
       }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const howard = $("howard");
+        const howardStill = $("howardStill");
+        const audio = $("audio");
+        const fetchBtn = $("fetchBtn");
+
+        if (howard && howardStill && audio) {
+            const mascot = document.querySelector(".mascot");
+            let isPlaying = false;
+
+            howard.style.opacity = "0";
+            howardStill.style.opacity = "1";
+
+            const startMascot = async () => {
+              if (isPlaying) return;
+            
+              isPlaying = true;
+              howard.style.opacity = "1";
+              howardStill.style.opacity = "0";
+            
+              try {
+                await audio.play();
+              } catch (_) {
+                isPlaying = false;
+              }
+            };
+          
+            const stopMascot = () => {
+              if (!isPlaying) return;
+            
+              howard.style.opacity = "0";
+              howardStill.style.opacity = "1";
+            
+              audio.pause();
+              isPlaying = false;
+            };
+          
+            mascot.addEventListener("mouseenter", startMascot);
+            mascot.addEventListener("mouseleave", stopMascot);
+        }
+      
+        fetchBtn.addEventListener("click", fetchWeather);
     });
   </script>
 </body>
